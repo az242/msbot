@@ -8,20 +8,30 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 
 public class dream extends Server {
-	String name = "dream";
 	public dream() {
-		this.nameSearchArea = new Rectangle();
-		this.levelSearchArea = new Rectangle();
-		this.chatExpanderSearchArea = new Rectangle();
-		this.inventorySearchArea = new Rectangle();
-		this.minimapNameSearchArea = new Rectangle();
+		name = "dream";
+		nameSearchArea = new Rectangle();
+		levelSearchArea = new Rectangle();
+		chatExpanderSearchArea = new Rectangle();
+		inventorySearchArea = new Rectangle();
+		minimapNameSearchArea = new Rectangle();
 		
-		this.clientIconSearchArea = new Rectangle(0,0,1920,1080);
-		this.taskbarIconSearchArea = new Rectangle();
-		this.clientCaptureAdjustment = new Rectangle(-3,21,1025,768);
+		clientIconSearchArea = new Rectangle(0,0,1920,1080);
+		taskbarIconSearchArea = new Rectangle();
+		clientCaptureAdjustment = new Rectangle(-3,21,1025,768);
 		
-		this.inventoryLabelSearchArea = new Rectangle(850,50, 175, 650);
+		inventoryLabelSearchArea = new Rectangle(850,50, 175, 650);
+		billionmesos = new Rectangle(36, 259, 20, 9);
+		millionmesos = new Rectangle(60, 259, 20, 9);
+		thousandmesos = new Rectangle(84, 259, 20, 9);
+		hundredmesos = new Rectangle(108, 259, 20, 9);
 		
+		hpSearchArea = new Rectangle(262,739,35,7);
+		mpSearchArea = new Rectangle(395,739,35,7);
+		//each num 5x7
+		//1 pixel inbetween numbers
+		//starts at 353 739
+		levelSearchArea = new Rectangle(38,744, 35, 13);
 	}
 	public void loadImages() {
 		String path = name + "/";
