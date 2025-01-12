@@ -20,31 +20,40 @@ import servers.Server;
 import utility.AttackData;
 import utility.Client;
 import utility.MaplePoint;
-public abstract class BaseBot {
-	Robot robot;
-	Server server;
+import utility.Map;
+public abstract class BaseBot extends Server{
+	public Robot robot;
 	HashMap<String, AttackData> attacks = new HashMap<String, AttackData>();
 	Client[] clients;
 	
-	LocalTime startTime;
-	public BaseBot(Client[] clients, Server server) throws AWTException {
-		this.server = server;
+	public LocalTime startTime;
+	
+	public int startingMesos;
+	public BaseBot(Client[] clients) throws AWTException {
 		this.attacks.put("genesis", new AttackData(KeyEvent.VK_C, 2375, 2500));
 		this.attacks.put("meteor", new AttackData(KeyEvent.VK_C, 3100, 1900));
 		this.attacks.put("heal", new AttackData(KeyEvent.VK_V, 590));
 		this.attacks.put("shining", new AttackData(KeyEvent.VK_N, 1050));
 		this.robot = new Robot();
-		this.clients = clients;
-		startTime = LocalTime.now();
-		botOutput("Initializing bot with " + clients.length + " screens.");
-		try {
-			this.server.searchArea = getMapleScreen(false);
-//			mapleScreen = getMapleScreen();
-			botOutput("Found Maple screen");
+		BufferedImage image = robot.createScreenCapture(new Rectangle(0,0,1300,800));
+		File outputfile = new File("wholeArea.png");
+	    try {
+			ImageIO.write(image, "png", outputfile);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} 
+		}
+		this.clients = clients;
+		startTime = LocalTime.now();
+		botOutput("Initializing bot with " + clients.length + " screens.");
+//		try {
+//			this.searchArea = getMapleScreen(true);
+////			mapleScreen = getMapleScreen();
+//			botOutput("Found Maple screen");
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} 
 //		chat = adjustRectangle(mapleScreen, chat);
 //		home= adjustRectangle(mapleScreen, new Rectangle(875, 723, 10, 12));
 //		insert = adjustRectangle(mapleScreen, new Rectangle(840, 723, 10, 12));
@@ -57,22 +66,8 @@ public abstract class BaseBot {
 //			// TODO Auto-generated catch block
 //			e.printStackTrace();
 //		}
-		this.server.loadImages();
-		try {
-			int startingMesos = getMesos();
-			int startingLevel = getLevel();
-			botOutput("Starting level: " + startingLevel);
-			botOutput("Starting mesos: " + startingMesos);
-		} catch (IOException e) {
-			botOutput("Error getting starting mesos/level");
-		}
+		
 	}
-	
-	/**
-	 * Abstract Method used for selling Equips at this continent
-	 * @throws IOException
-	 */
-	public abstract void sellEquips() throws IOException;
 	/**
 	 * Searches for the maple client's icon in the given server's icon search area.
 	 * Adjusts the mapleclient rectangle by the server's clientCaptureAdjustment
@@ -81,14 +76,28 @@ public abstract class BaseBot {
 	 * @throws IOException
 	 */
 	public Rectangle getMapleScreen(boolean saveImage) throws IOException {
-		MaplePoint upperLeft = getOrigin(this.server.clientIconSearchArea, this.server.taskBarIcon, false);
-		Rectangle mapleClient = new Rectangle(upperLeft.x + this.server.clientCaptureAdjustment.x,upperLeft.y + this.server.clientCaptureAdjustment.y,this.server.clientCaptureAdjustment.width,this.server.clientCaptureAdjustment.height);
+		MaplePoint upperLeft = getOrigin(this.clientIconSearchArea, this.titleBarIcon);
+		Rectangle mapleClient = new Rectangle(upperLeft.x + this.clientCaptureAdjustment.x,upperLeft.y + this.clientCaptureAdjustment.y,this.clientCaptureAdjustment.width,this.clientCaptureAdjustment.height);
 		if(saveImage) {
 			BufferedImage bi = robot.createScreenCapture(mapleClient);  // retrieve image
 		    File outputfile = new File("saved.png");
 		    ImageIO.write(bi, "png", outputfile);
 		}
 		return mapleClient;
+	}
+	/**
+	 * Gets the position of the player in the minimap search area
+	 * @param data
+	 * @return
+	 * @throws IOException
+	 */
+	public MaplePoint getMinimapPosition(Map data) throws IOException {
+		MaplePoint matches = getOrigin(data.minimapName,data.minimapNameImage);
+		if(matches.x == -1 || matches.y == -1) {
+			botOutput("Map changed! Exiting...");
+//			exitScript();
+		}
+		return getOrigin(data.minimap,this.minimapPlayerImage);
 	}
 	/**
 	 * Searches for the given BufferedImage image in the given Rectangle searchArea and returns the x,y where the image matched.
@@ -127,7 +136,17 @@ public abstract class BaseBot {
 		return new MaplePoint(-1,-1);
 	}
 	/**
-	 * finds a matching image in search area with pixels that are below 50 in RGB. (dark pixels)
+	 * Searches for the given BufferedImage image in the given Rectangle searchArea and returns the x,y where the image matched. (does not save images)
+	 * @param searchArea - Rectangle - The area that will be searched
+	 * @param image - BufferedImage - The image to be matched against
+	 * @return MaplePoint - The x,y coordinate that matched the image
+	 * @throws IOException
+	 */
+	public MaplePoint getOrigin(Rectangle searchArea, BufferedImage image) throws IOException {
+		return getOrigin(searchArea,image,false);
+	}
+	/**
+	 * finds a matching image in search area with pixels that are below 50 in RGB. (dark pixels) (originally for buffs)
 	 * @param searchArea - Rectangle - The area to search in
 	 * @param image - BufferedImage - image to match against
 	 * @param saveImage - boolean - true to save images
@@ -173,21 +192,23 @@ public abstract class BaseBot {
 	 * @param searchArea - Rectangle - The area to search for numbers
 	 * @param numbers - BufferedImage[] - the array of buffered images of numbers
 	 * @param pixelOffset - int - Offset of each number in by pixels
-	 * @param inverseCheck - boolean - If true will check against pixels NOT white, if false will only check black pixels
+	 * @param checkWhite - boolean - If true will check against white pixels, if false will only check non-white pixels
 	 * @return ArrayList<Integer> - returns an array list of found digits
 	 * @throws IOException
 	 */
-	public ArrayList<Integer> findNums(Rectangle searchArea, BufferedImage[] numbers, int pixelOffset, boolean inverseCheck) throws IOException {
+	public ArrayList<Integer> findNums(Rectangle searchArea, BufferedImage[] numbers, int pixelOffset, int numOfDigits, boolean checkWhite) throws IOException {
 		BufferedImage image = robot.createScreenCapture(searchArea);
+//		File outputfile = new File("numbers.png");
+//	    ImageIO.write(image, "png", outputfile);
 		ArrayList<Integer> numbersFound = new ArrayList<Integer>();
-		for(int k=0;k<5;k++) {
+		for(int k=0;k<numOfDigits;k++) {
 			for(int i=numbers.length-1;i>=0;i--) {
 				boolean match = true;
 				bp1:
 				for(int x2=0;x2<numbers[i].getWidth();x2++) {
 					for(int y2=0;y2<numbers[i].getHeight();y2++) {
 						Color pic1 = new Color(numbers[i].getRGB(x2, y2));
-						if(inverseCheck) {
+						if(!checkWhite) {
 							if(pic1.getRed() != 255 && pic1.getBlue() != 255 && pic1.getGreen() != 255) {
 								if(numbers[i].getRGB(x2, y2) != image.getRGB(x2 + (k * pixelOffset), y2)) {
 									match = false;
@@ -213,72 +234,16 @@ public abstract class BaseBot {
 		return numbersFound;
 	}
 	/**
-	 * Find numbers in the given search area by their white pixels. ( ONLY CHECKS WHITE PIXELS)
-	 * @param searchArea - Rectangle - The area to search for numbers
-	 * @param numbers - BufferedImage[] - the array of buffered images of numbers
-	 * @param pixelOffset - int - Offset of each number in by pixels
-	 * @return ArrayList<Integer> - returns an array list of found digits
-	 * @throws IOException
-	 */
-	public ArrayList<Integer> findNums(Rectangle searchArea, BufferedImage[] numbers, int pixelOffset) throws IOException {
-		return findNums(searchArea, numbers, pixelOffset, false);
-	}
-	/**
-	 * Finds the origin of the Inventory label in the search area adjusted by the inventoryLabelSearchArea
-	 * @return MaplePoint - Origin of found inventory label, or -1,-1 if not found
-	 * @throws IOException
-	 */
-	public MaplePoint findInventory() throws IOException {
-		Rectangle adjustedSearchArea = adjustRectangle(this.server.searchArea, this.server.inventoryLabelSearchArea);
-		MaplePoint x = getOrigin(adjustedSearchArea, this.server.inventoryLabel, false);
-		if(x.x >= 0) {
-			//adjust
-			x.x = adjustedSearchArea.x + x.x;
-			x.y = adjustedSearchArea.y + x.y;
-		}
-		return x;
-	}
-	public String formatMesos(int number) {
-		return String.format("%,d", number);
-	}
-	public int getHp() throws IOException {
-		int hp = 0;
-		Rectangle hpRect = adjustRectangle(this.server.searchArea, new Rectangle(this.server.hpSearchArea));
-		ArrayList<Integer> numbersFound = findNums(hpRect,this.server.numImages,6);
-		for(int x=0;x<numbersFound.size();x++) {
-			hp = hp + numbersFound.get(x)*10^(numbersFound.size()-x-1);
-		}
-		return hp;
-	}
-	public int getMp() throws IOException {
-		int mp = 0;
-		Rectangle MPRect = adjustRectangle(this.server.searchArea, new Rectangle(this.server.mpSearchArea));
-		ArrayList<Integer> numbersFound = findNums(MPRect, this.server.numImages, 6);
-		for(int x=0;x<numbersFound.size();x++) {
-			mp = (int) (mp + numbersFound.get(x)*Math.pow(10, numbersFound.size()-x-1));
-		}
-		return mp;
-	}
-	public int getLevel() throws IOException {
-		int level = 0;
-		Rectangle LevelRect = adjustRectangle(this.server.searchArea, new Rectangle(this.server.levelSearchArea));
-		ArrayList<Integer> findLevelNums = findNums(LevelRect, this.server.levelImages, 12);
-		for(int x=0;x<findLevelNums.size();x++) {
-			level = (int) (level + findLevelNums.get(x)*Math.pow(10, findLevelNums.size()-x-1));
-		}
-		return level;
-	}
-	/**
 	 * gets the mesos in the inventory
 	 * @return
 	 * @throws IOException
 	 */
 	public int getMesos() throws IOException {
 		MaplePoint invLoc = findInventory();
-		ArrayList<Integer> list1 = findNums(new Rectangle(adjustRectangle(invLoc, this.server.hundredmesos)),this.server.mesosNumImages, 7, true);
-		ArrayList<Integer> list2 = findNums(new Rectangle(adjustRectangle(invLoc, this.server.thousandmesos)),this.server.mesosNumImages, 7, true);
-		ArrayList<Integer> list3 = findNums(new Rectangle(adjustRectangle(invLoc, this.server.millionmesos)),this.server.mesosNumImages, 7, true);
-		ArrayList<Integer> list4 = findNums(new Rectangle(adjustRectangle(invLoc, this.server.billionmesos)),this.server.mesosNumImages, 7, true);
+		ArrayList<Integer> list1 = findNums(adjustRectangle(invLoc, this.hundredmesos),this.mesosNumImages, 7, 3);
+		ArrayList<Integer> list2 = findNums(adjustRectangle(invLoc, this.thousandmesos),this.mesosNumImages, 7, 3);
+		ArrayList<Integer> list3 = findNums(adjustRectangle(invLoc, this.millionmesos),this.mesosNumImages, 7, 3);
+		ArrayList<Integer> list4 = findNums(adjustRectangle(invLoc, this.billionmesos),this.mesosNumImages, 7, 3);
 		ArrayList<Integer> combinedList = new ArrayList<>();
 		combinedList.addAll(list4);
 		combinedList.addAll(list3);
@@ -291,7 +256,74 @@ public abstract class BaseBot {
         }
 		return total;
 	}
-	public void botOutput(String output) {
+	/**
+	 * Find numbers in the given search area by their white pixels. ( ONLY CHECKS WHITE PIXELS)
+	 * @param searchArea - Rectangle - The area to search for numbers
+	 * @param numbers - BufferedImage[] - the array of buffered images of numbers
+	 * @param pixelOffset - int - Offset of each number in by pixels
+	 * @return ArrayList<Integer> - returns an array list of found digits
+	 * @throws IOException
+	 */
+	public ArrayList<Integer> findNums(Rectangle searchArea, BufferedImage[] numbers, int pixelOffset, int numOfDigits) throws IOException {
+		return findNums(searchArea, numbers, pixelOffset, numOfDigits, false);
+	}
+	/**
+	 * Finds the origin of the Inventory label in the search area adjusted by the searchArea
+	 * @return MaplePoint - Origin of found inventory label, or -1,-1 if not found
+	 * @throws IOException
+	 */
+	public MaplePoint findInventory() throws IOException {
+		Rectangle adjustedSearchArea = adjustRectangle(this.searchArea, this.inventoryLabelSearchArea);
+		MaplePoint x = getOrigin(adjustedSearchArea, this.inventoryLabel);
+		if(x.x >= 0) {
+			//adjust
+			x.x = adjustedSearchArea.x + x.x;
+			x.y = adjustedSearchArea.y + x.y;
+		}
+		return x;
+	}
+	public String formatMesos(int number) {
+		return String.format("%,d", number);
+	}
+	public int getHp() throws IOException {
+		int hp = 0;
+		Rectangle hpRect = adjustRectangle(this.searchArea,this.hpSearchArea);
+		ArrayList<Integer> numbersFound = findNums(hpRect,this.numImages, 6, 5);
+		for(int x=0;x<numbersFound.size();x++) {
+			hp = hp + numbersFound.get(x)*10^(numbersFound.size()-x-1);
+		}
+		return hp;
+	}
+	public int getMp() throws IOException {
+		int mp = 0;
+		Rectangle MPRect = adjustRectangle(this.searchArea,this.mpSearchArea);
+		ArrayList<Integer> numbersFound = findNums(MPRect, this.numImages, 6, 5);
+		for(int x=0;x<numbersFound.size();x++) {
+			mp = (int) (mp + numbersFound.get(x)*Math.pow(10, numbersFound.size()-x-1));
+		}
+		return mp;
+	}
+	public int getLevel() throws IOException {
+		int level = 0;
+		Rectangle LevelRect = adjustRectangle(this.searchArea,this.levelSearchArea);
+		ArrayList<Integer> findLevelNums = findNums(LevelRect, this.levelImages, 12, 3);
+		for(int x=0;x<findLevelNums.size();x++) {
+			level = (int) (level + findLevelNums.get(x)*Math.pow(10, findLevelNums.size()-x-1));
+		}
+		return level;
+	}
+	public void waitOnChat() throws IOException {
+		boolean chatOpen = true;
+		while(chatOpen) {
+			if(getOrigin(chatExpanderSearchArea,chatExpandedImage).x < 0) {
+				chatOpen = false;
+			} else {
+				botOutput("chat is open! rechecking in 4 seconds...");
+				robot.delay(4000);
+			}
+		}
+	}
+	public static void botOutput(String output) {
 		LocalTime myObj = LocalTime.now();
 	    System.out.println("[" + myObj + "] " + output);
 	}
@@ -313,6 +345,58 @@ public abstract class BaseBot {
 		robot.mouseMove(point.x, point.y);
 		robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
 		robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+	}
+	public void attack(AttackData attack, int numAttacks) throws IOException {
+		botOutput("Attacking " + numAttacks + " times with " + attack.delay + "ms Delay.");
+		int originalMp = 0;
+		if(attack.manaCost != 0) {
+			originalMp = getMp();
+		}
+		for(int x=0;x<numAttacks;x++) {
+			waitOnChat();
+			robot.keyPress(attack.key);
+			robot.delay(300);
+			if(attack.manaCost != 0) {
+				int newMp = getMp();
+				while(Math.abs(originalMp-newMp) < attack.manaCost) {
+					botOutput("Failed to attack... retrying origMP:" + originalMp + ", new MP:" +newMp);
+					robot.keyPress(attack.key);
+					robot.delay(300);
+					newMp = getMp();
+				}
+			}
+			robot.delay(attack.delay + randomPosNeg(randomNum(1,10)));
+		}
+		robot.keyRelease(attack.key);
+	}
+	public void exitScript() {
+		LocalTime now = LocalTime.now();
+		int level = 0;
+		int endingMesos = 0;
+		try {
+//			level = getLevel();
+			endingMesos = getMesos();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+//		botOutput("Starting level: " + startingLevel + ", Ending Level: " + level);
+		botOutput("Starting mesos: " + startingMesos + ", Ending mesos: " + formatMesos(endingMesos));
+		botOutput("Script ran for " + MINUTES.between(startTime, now) + " minutes");
+		botOutput("Exiting script...");
+		System.exit(0);
+	}
+	public static Map getMap(String name, ArrayList<Map> maps) {
+		for(int x=0;x<maps.size();x++) {
+			System.out.println(maps.get(x).name);
+			if(maps.get(x).name.equals(name)) {
+				return maps.get(x);
+			}
+		}
+		botOutput("Couldn't find your script among the following:");
+		for(int x=0;x<maps.size();x++) {
+			botOutput(maps.get(x).name);
+		}
+		return null;
 	}
 	public void keyPress(int key) {
 		robot.keyPress(key);
@@ -383,8 +467,7 @@ public abstract class BaseBot {
 	 * @return Rectangle - The adjusted area relative to the whole screen
 	 */
 	public static Rectangle adjustRectangle(Rectangle adjustment, Rectangle area) {
-		area.setLocation((int)(adjustment.getX() + area.getX()),(int)( adjustment.getY() + area.getY()));
-		return area;
+		return new Rectangle((int)(adjustment.getX() + area.getX()), (int)( adjustment.getY() + area.getY()), area.width, area.height);
 	}
 	/**
 	 * Adjusts the area's x and y coordinates by the given adjustment Rectangle
@@ -393,7 +476,22 @@ public abstract class BaseBot {
 	 * @return Rectangle - The adjusted area relative to the whole screen
 	 */
 	public static Rectangle adjustRectangle(MaplePoint adjustment, Rectangle area) {
-		area.setLocation((int)(adjustment.getX() + area.getX()),(int)( adjustment.getY() + area.getY()));
-		return area;
+		return new Rectangle((int)(adjustment.getX() + area.getX()),(int)( adjustment.getY() + area.getY()), area.width, area.height);
+	}
+	
+	public static MaplePoint adjustPoint(MaplePoint adjustment, MaplePoint mp) {
+		return new MaplePoint((int)(adjustment.getX() + mp.getX()),(int)( adjustment.getY() + mp.getY()));
+	}
+	public static Rectangle antiAdjust(Rectangle adjustment, Rectangle area) {
+		return new Rectangle((int)(area.getX() - adjustment.getX() ), (int)(area.getY() - adjustment.getY()), area.width, area.height);
+	}
+	public static Rectangle antiAdjust(MaplePoint adjustment, Rectangle area) {
+		return new Rectangle((int)(area.getX() - adjustment.getX() ), (int)(area.getY() - adjustment.getY()), area.width, area.height);
+	}
+	public static void adjustMinimapData(Rectangle mapleScreen, ArrayList<Map> maps) {
+		for(int x=0;x<maps.size();x++) {
+			maps.get(x).adjustPoint((int)mapleScreen.getX(), (int)mapleScreen.getY());
+			botOutput("Adjusted map data for " + maps.get(x).name);
+		}
 	}
 }

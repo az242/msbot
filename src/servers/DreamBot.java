@@ -1,26 +1,36 @@
 package servers;
 
+import java.awt.AWTException;
 import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
-public class dream extends Server {
-	public dream() {
-		name = "dream";
+import msBot.BaseBot;
+import utility.AttackData;
+import utility.Client;
+import utility.MaplePoint;
+
+public class DreamBot extends BaseBot {
+	public HashMap<String, AttackData> attacks = new HashMap<String, AttackData>();
+	public DreamBot() throws AWTException {
+		super(new Client[] {new Client("cleric", "test.png")});
+		name = "dreamms";
 		nameSearchArea = new Rectangle();
 		levelSearchArea = new Rectangle();
-		chatExpanderSearchArea = new Rectangle();
+		chatExpanderSearchArea = new Rectangle(605,705, 30, 30);
 		inventorySearchArea = new Rectangle();
 		minimapNameSearchArea = new Rectangle();
 		
 		clientIconSearchArea = new Rectangle(0,0,1920,1080);
 		taskbarIconSearchArea = new Rectangle();
-		clientCaptureAdjustment = new Rectangle(-3,21,1025,768);
+		clientCaptureAdjustment = new Rectangle(-3,21,1280,720);
 		
-		inventoryLabelSearchArea = new Rectangle(850,50, 175, 650);
+		inventoryLabelSearchArea = new Rectangle(1100, 50, 175, 400);
 		billionmesos = new Rectangle(36, 259, 20, 9);
 		millionmesos = new Rectangle(60, 259, 20, 9);
 		thousandmesos = new Rectangle(84, 259, 20, 9);
@@ -32,13 +42,31 @@ public class dream extends Server {
 		//1 pixel inbetween numbers
 		//starts at 353 739
 		levelSearchArea = new Rectangle(38,744, 35, 13);
+		this.attacks.put("genesis", new AttackData(KeyEvent.VK_C, 2375, 2500));
+		this.attacks.put("meteor", new AttackData(KeyEvent.VK_C, 3100, 1900));
+		this.attacks.put("heal", new AttackData(KeyEvent.VK_V, 615));
+		this.attacks.put("shining", new AttackData(KeyEvent.VK_N, 1050));
+		this.loadImages();
+		try {
+			this.searchArea = getMapleScreen(true);
+			startingMesos = getMesos();
+//			int startingLevel = getLevel();
+//			botOutput("Starting level: " + startingLevel);
+			botOutput("Starting mesos: " + startingMesos);
+//			System.out.println("Search Area: " + this.searchArea.toString());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	public void loadImages() {
 		String path = name + "/";
 		try {
-			
-			this.taskBarIcon = ImageIO.read(new File(path + "mapleIcon.png"));
+			this.chatExpandedImage = ImageIO.read(new File(path + "chatOpen.png"));
+			this.minimapPlayerImage = ImageIO.read(new File(path + "minimapLocation.png"));
+			this.titleBarIcon = ImageIO.read(new File(path + "mapleIcon.png"));
 			if(new File(path + "inventory/").exists()) {
+				System.out.println("loaded custom numbers");
 				this.inventoryLabel = ImageIO.read(new File(path + "inventory/inventory.png"));
 				this.mesosNumImages = new BufferedImage[]{
 						ImageIO.read(new File(path + "inventory/0.png")),ImageIO.read(new File(path + "inventory/1.png")),ImageIO.read(new File(path + "inventory/2.png"))

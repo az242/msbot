@@ -1,9 +1,9 @@
 package utility;
 
 public class AttackData {
-	int delay;
-	int key;
-	int manaCost;
+	public int delay;
+	public int key;
+	public int manaCost;
 	public AttackData(int key, int delay, int manaCost) {
 		this.delay = delay;
 		this.key = key;
